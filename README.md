@@ -2,7 +2,7 @@
 
 Codes for DSP course's final assignment.
 
-## Simulation 1: PseudoRandomNumberGenerator
+## Simulation 1: PseudoRNG
 
 Run `pseudo_rng.py`.
 
