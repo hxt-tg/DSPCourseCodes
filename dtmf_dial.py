@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
 from pseudo_rng import pseudo_gauss
 from scipy import fftpack
+from utils import *
 
 
 class DTMF:
@@ -81,78 +81,12 @@ class DTMF:
         return self.volume * wave
 
 
-def show_amplitude(wave, sampling_rate):
-    X = fftpack.fft(wave)
-    freq = fftpack.fftfreq(len(wave)) * sampling_rate
-
-    fig, ax = plt.subplots()
-    ax.stem(freq, np.abs(X), use_line_collection=True, markerfmt='C0,')
-    ax.set_xlabel('Frequency (Hz)')
-    ax.set_ylabel('Frequency magnitude')
-    ax.set_xlim(0, 2500)
-    plt.show()
-
-
-def _make_short_time_window(wave, window_size, shift):
-    n_samples = wave.shape[0]
-    n_windows = int(np.ceil((n_samples - window_size) / shift))
-    window = np.zeros((n_windows, window_size))
-    for i in range(n_windows):
-        window[i] = wave[i * shift:i * shift + window_size]
-    return window
-
-
-def plot_wave_amplitude(wave, sampling_rate, ax=None, hide_x=False):
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 2), dpi=400)
-    ax.plot(wave, color=(0.27, 0.87, 0.61, 1), lw=0.2)
-    ax.set_facecolor((0, 0, 0))
-    ax.set_xlim(0, len(wave) - 1)
-    n_secs = int(len(wave) / sampling_rate) + 1
-    ax.set_xticks(list(range(0, n_secs * int(sampling_rate), 2 * int(sampling_rate))))
-    ax.grid(color=(0, 0.4, 0), which='both')
-    if hide_x:
-        ax.set_xticklabels([])
-    else:
-        ax.set_xticklabels([(lambda tick: f'{int(tick / sampling_rate)}')(t) for t in ax.get_xticks()])
-        ax.set_xlabel('Time (second)')
-    ax.set_ylabel('Amplitude')
-    return ax
-
-
-def plot_short_time_freq(wave, sampling_rate, window_size=1024, shift=100, display_max_freq=None, ax=None):
-    n_samples = wave.shape[0]
-    max_freq = sampling_rate / 2
-    window = _make_short_time_window(wave, window_size, shift)
-    window = (window * np.hanning(window_size + 1)[:-1]).T
-    spectrum = np.fft.fft(window, axis=0)[:window_size // 2 + 1:-1]
-    spectrum = np.abs(spectrum)[:, :-2]
-
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 2))
-    spec = np.abs(spectrum)
-
-    # Comment for visualization performance
-    # spec = 20 * np.log10(spec / np.max(spec))
-
-    display_max_idx = int(spec.shape[0] * min(display_max_freq / max_freq, 1))
-    spec = spec[:display_max_idx]
-
-    ax.imshow(spec, origin='lower', cmap='gist_heat',
-              extent=(0, n_samples / sampling_rate, 0, display_max_freq))
-    ax.axis('tight')
-    ax.set_ylabel('Frequency (kHz)')
-    ax.set_xlabel('Time (second)')
-    return ax
-
-
 def construct_dtmf_experiment(message, SNR_dB):
     dial = DTMF(dial_ms_range=(300, 500), interval_ms=500, volume=0.2, SNR_dB=SNR_dB)
     wave = dial.encode(message, remove_noise=False)
-
     fig, (ax_up, ax_down) = plt.subplots(nrows=2, ncols=1, figsize=(12, 5))
-    plot_wave_amplitude(wave, dial.SR, ax=ax_up, hide_x=True)
-    plot_short_time_freq(wave, dial.SR, display_max_freq=2500, ax=ax_down)
+    plot_amplitude_time_domain(wave, dial.SR, ax=ax_up, hide_x=True)
+    plot_short_time_freq_domain(wave, dial.SR, freq_range=(0, 2500), ax=ax_down)
     ax_up.set_title(f'Message: "{message}"    (SNR = {SNR_dB}dB)')
     plt.show()
 
