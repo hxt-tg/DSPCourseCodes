@@ -17,7 +17,7 @@ def chunks(lst, n):
 class QAM16:
     I_AMP = {'00': -3.0, '01': -1.0, '11': 1.0, '10': 3.0}
     Q_AMP = {'01': -3.0, '11': -1.0, '10': 1.0, '00': 3.0}
-    BAUD2MOD = (lambda IA, QA: {Q_baud + I_baud: polar(I_amp + 1j * Q_amp)
+    BAUD2MOD = (lambda IA, QA: {I_baud + Q_baud: polar(I_amp + 1j * Q_amp)
                                 for I_baud, I_amp in IA.items()
                                 for Q_baud, Q_amp in QA.items()}
                 )(I_AMP, Q_AMP)
@@ -25,7 +25,7 @@ class QAM16:
 
     def __init__(self, SF=10e6, MF=2e6, SNR_dB=5, baud_width_ms=0.01):
         """
-        Initialize dual-tone multi-frequency signaling encoder/decoder.
+        Initialize dual-tone multi-frequency signaling modulator/demodulator.
 
         :param SF:            sampling frequency.
         :param MF:            Modulation frequency.
@@ -42,7 +42,7 @@ class QAM16:
         return signal + np.array([pseudo_gauss(mean, devi) for _ in range(signal.shape[0])])
 
     @staticmethod
-    def _encodable(m):
+    def _modulatable(m):
         if len(m) % QAM16.BITS_PER_BAUD != 0: return False
         for baud in chunks(m, QAM16.BITS_PER_BAUD):
             if baud not in QAM16.BAUD2MOD: return False
@@ -58,15 +58,16 @@ class QAM16:
         piece = amp * np.sin(2.0 * np.pi * self.MF * t + phase)
         return piece
 
-    def encode(self, message, remove_noise=False):
+    def modulate(self, message, remove_noise=False, verbose=False):
         """
-        Encode message to microwave.
+        Modulate message to microwave.
 
-        :param message:      message (binary-chains) to encode.
+        :param message:      message (binary-chains) to modulate.
         :param remove_noise: if remove noise.
-        :return:             encoded wave.
+        :param verbose:      if print message info.
+        :return:             modulated wave.
         """
-        if not self._encodable(message):
+        if not self._modulatable(message):
             raise ValueError(f'Message "{message}" is not encodable. '
                              f'Length should be divided by 4 and only contains 0 or 1.')
         wave = np.zeros(0)
@@ -75,10 +76,11 @@ class QAM16:
 
         wave_std_deviation = wave.std()
         AWGM_devi = wave_std_deviation / (10 ** (self.SNR_dB / 20))
-        print(f'Message length: {len(message)} bits, {len(message) // QAM16.BITS_PER_BAUD} bauds'
-              f'    (SNR = {self.SNR_dB}dB)')
-        print(f'  Wave standard deviation: {wave_std_deviation:.2f}')
-        print(f'  AWGM standard deviation: {AWGM_devi:.2f}')
+        if verbose:
+            print(f'Message length: {len(message)} bits, {len(message) // QAM16.BITS_PER_BAUD} bauds'
+                  f'    (SNR = {self.SNR_dB}dB)')
+            print(f'  Wave standard deviation: {wave_std_deviation:.2f}')
+            print(f'  AWGM standard deviation: {AWGM_devi:.2f}')
         if not remove_noise: wave = self.AWGN_func(wave, 0, AWGM_devi)
         return wave
 
@@ -99,7 +101,7 @@ class QAM16:
             for Q_baud, Q_amp in QAM16.Q_AMP.items():
                 if (dis := (I_val - I_amp) ** 2 + (Q_val - Q_amp) ** 2) < closest_distance:
                     closest_distance = dis
-                    closest_baud = Q_baud + I_baud
+                    closest_baud = I_baud + Q_baud
         return closest_baud
 
     def _find_IQ(self, piece):
@@ -108,12 +110,12 @@ class QAM16:
         LO_Q = 2 * np.cos(2.0 * np.pi * self.MF * t)
         return self._low_pass(piece * LO_I).mean(), self._low_pass(piece * LO_Q).mean()
 
-    def decode(self, wave):
+    def demodulate(self, wave):
         """
-        Decode message from microwave.
+        Demodulate message from microwave.
 
-        :param wave:   microwave to decode.
-        :return:       decoded message (binary-chains) .
+        :param wave:   microwave to demodulate.
+        :return:       demodulated message (binary-chains) .
         """
         n_piece_samples = self._ms_to_samples(self.baud_width_ms)
         result = dict(
@@ -140,20 +142,20 @@ def main_test_modulation(message):
     q = QAM16(10e6, 2e6, 10, baud_width_ms=0.01)
     show_constellation_graph(QAM16.BAUD2MOD, axis_lim=[-3.9, 3.9, -3.9, 3.9])
 
-    wave = q.encode(message, remove_noise=True)
+    wave = q.modulate(message, remove_noise=True, verbose=True)
 
     fig, (ax_up, ax_down) = plt.subplots(nrows=2, ncols=1, figsize=(12, 5))
-    plot_amplitude_time_domain(wave, q.SF, ax=ax_up, hide_x=True)
+    plot_amplitude_time_domain(wave, q.SF, ax=ax_up, hide_x=True, adobe_like=True)
     plot_short_time_freq_domain(wave, q.SF, freq_range=(0, 2.5e6), ax=ax_down)
     ax_up.set_title(f'Message length: {len(message)} bits, {len(message) // QAM16.BITS_PER_BAUD} bauds'
                     f'    (SNR = {q.SNR_dB}dB)')
     plt.show()
 
 
-def main_test_demodulation(message, prefix_bauds=20, suffix_bauds=10):
+def main_test_demodulation(message, prefix_bauds=10, suffix_bauds=8, prefix_IQ_graph=20):
     q = QAM16(10e6, 2e6, 10, baud_width_ms=0.01)
-    wave = q.encode(message)
-    decoded_result = q.decode(wave)
+    wave = q.modulate(message)
+    decoded_result = q.demodulate(wave)
 
     decoded_message = ''.join(decoded_result['message'])
     split = lambda s: ' '.join(chunks(s, QAM16.BITS_PER_BAUD))
@@ -164,18 +166,20 @@ def main_test_demodulation(message, prefix_bauds=20, suffix_bauds=10):
 
     diff_bits = string_hamming_distance(message, decoded_message)
     diff_bauds = string_hamming_distance(message, decoded_message, True)
-    print(f' Error bits: {diff_bits}    '
+    print(f'[Demodulate result]\n'
+          f' Error bits: {diff_bits}    '
           f'({diff_bits / len(message) * 100:.2f}%)')
     print(f'Error bauds: {diff_bauds}    '
           f'({diff_bauds / (len(message) // QAM16.BITS_PER_BAUD) * 100:.2f}%)')
 
     plt.title(f'SNR={q.SNR_dB} dB')
     show_IQs_on_constellation(decoded_result['IQ'], axis_lim=[-3.9, 3.9, -3.9, 3.9])
-    show_decoded_waves(q, message, wave)
+    show_decoded_IQ_waves(q, message[:prefix_IQ_graph * QAM16.BITS_PER_BAUD],
+                       wave[:prefix_IQ_graph*q._ms_to_samples(q.baud_width_ms)])
 
 
 # noinspection PyProtectedMember
-def show_decoded_waves(qam16, message, wave):
+def show_decoded_IQ_waves(qam16, message, wave):
     wave_I = np.zeros(0)
     wave_Q = np.zeros(0)
     n_piece_samples = qam16._ms_to_samples(qam16.baud_width_ms)
@@ -192,7 +196,9 @@ def show_decoded_waves(qam16, message, wave):
     plot_amplitude_time_domain(wave_Q, qam16.SF, ax=ax_down)
 
     bauds = list(chunks(message, QAM16.BITS_PER_BAUD))
-    ax_up.set_title(f'Amplitude wave of I and Q   (SNR={qam16.SNR_dB} dB)\n'
+    ax_up.set_title(f'Amplitude wave of I and Q   '
+                    f'(first {len(bauds)} bauds, '
+                    f'SNR={qam16.SNR_dB} dB)\n'
                     'Message: ' + ' '.join(bauds[:10]) +
                     (' ...' if len(bauds) > 10 else ''))
     ax_up.set_ylabel('Amplitude (I)')
@@ -207,7 +213,7 @@ def main():
     np.random.shuffle(message)
     message = ''.join(message)
 
-    # main_test_modulation(message)
+    main_test_modulation(message)
     main_test_demodulation(message)
 
 

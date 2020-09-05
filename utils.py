@@ -24,16 +24,18 @@ def _make_short_time_window(wave, window_size, shift):
     return window
 
 
-def plot_amplitude_time_domain(wave, sampling_rate, ax=None, hide_x=False, adobe_like=False):
+def plot_amplitude_time_domain(wave, sampling_rate, ax=None, hide_x=False, adobe_like=False, lw=None):
     x_axis = np.linspace(0, len(wave) - 1, len(wave)) / sampling_rate
     if ax is None:
         fig, ax = plt.subplots(figsize=(12, 2), dpi=400)
     if adobe_like:
-        ax.plot(x_axis, wave, color=(0.27, 0.87, 0.61, 1), lw=0.2)
+        lw = 0.2 if lw is None else lw
+        ax.plot(x_axis, wave, color=(0.27, 0.87, 0.61, 1), lw=lw)
         ax.set_facecolor((0, 0, 0))
         ax.grid(color=(0, 0.4, 0), which='both')
     else:
-        ax.plot(x_axis, wave, lw=2)
+        lw = 1 if lw is None else lw
+        ax.plot(x_axis, wave, lw=lw)
         # ax.grid(color=(0.1, 0.1, 0.1), which='both')
     ax.set_xlim(0, x_axis[-1])
     if hide_x:

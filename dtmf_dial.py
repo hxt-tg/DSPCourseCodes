@@ -85,7 +85,7 @@ def construct_dtmf_experiment(message, SNR_dB):
     dial = DTMF(dial_ms_range=(300, 500), interval_ms=500, volume=0.2, SNR_dB=SNR_dB)
     wave = dial.encode(message, remove_noise=False)
     fig, (ax_up, ax_down) = plt.subplots(nrows=2, ncols=1, figsize=(12, 5))
-    plot_amplitude_time_domain(wave, dial.SR, ax=ax_up, hide_x=True)
+    plot_amplitude_time_domain(wave, dial.SR, ax=ax_up, hide_x=True, adobe_like=True)
     plot_short_time_freq_domain(wave, dial.SR, freq_range=(0, 2500), ax=ax_down)
     ax_up.set_title(f'Message: "{message}"    (SNR = {SNR_dB}dB)')
     plt.show()

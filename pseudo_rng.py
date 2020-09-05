@@ -41,17 +41,25 @@ def pseudo_gauss(mean=.0, std_deviation=1.0):
 
 
 def main():
-    n = 1000000
+    n = 100000
     arr = np.array([pseudo_gauss(0.5) for _ in range(int(n))])
     print(f'Among {n} samples:')
     print(f'  Standard deviation: {np.std(arr):.2f}')
     print(f'  Mean: {np.mean(arr):.2f}')
-    plt.plot(arr[:1000])
+    plt.plot(arr[:1000], lw=0.4)
+    plt.hlines(0.5, xmin=0, xmax=1000, colors='r', lw=2)
+    plt.hlines([-0.5, 1.5], xmin=0, xmax=1000, colors='y', lw=2)
+    plt.axis([0, 1000, -3.5, 4.5])
+
     plt.xlabel('Time step (first 1000 numbers)')
-    plt.ylabel('Value')
+    plt.ylabel('Random variable X')
     plt.show()
     plt.hist(arr, bins=1000)
-    plt.xlabel('Value')
+    plt.vlines(0.5, ymin=0, ymax=5e4, colors='r', lw=0.8)
+    plt.vlines([-0.5, 1.5], ymin=0, ymax=5e4, colors='y', lw=0.8)
+    plt.axis([-4.5, 5.5, 0, 50000])
+    plt.gca().set_yticks([])
+    plt.xlabel('Random variable X')
     plt.ylabel('Frequency')
     plt.show()
 
